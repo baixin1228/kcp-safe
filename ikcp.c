@@ -37,7 +37,7 @@ const IUINT32 IKCP_WND_RCV = 128;       // must >= max fragment size
 const IUINT32 IKCP_MTU_DEF = 1400;
 const IUINT32 IKCP_ACK_FAST	= 3;
 const IUINT32 IKCP_INTERVAL	= 100;
-const IUINT32 IKCP_OVERHEAD = 24;
+const IUINT32 IKCP_OVERHEAD = 20;
 const IUINT32 IKCP_DEADLINK = 20;
 const IUINT32 IKCP_THRESH_INIT = 2;
 const IUINT32 IKCP_THRESH_MIN = 2;
@@ -759,6 +759,7 @@ int ikcp_input(ikcpcb *kcp, const char *data, long size)
 	IUINT32 maxack = 0, latest_ts = 0;
 	int flag = 0;
 
+
 	if (ikcp_canlog(kcp, IKCP_LOG_INPUT)) {
 		ikcp_log(kcp, IKCP_LOG_INPUT, "[RI] %d bytes", (int)size);
 	}
@@ -766,26 +767,25 @@ int ikcp_input(ikcpcb *kcp, const char *data, long size)
 	if (data == NULL || (int)size < (int)IKCP_OVERHEAD) return -1;
 
 	while (1) {
-		IUINT32 ts, sn, len, una, conv;
-		IUINT16 wnd;
-		IUINT8 cmd, frg;
+		IUINT32 ts, sn, una;
+		IUINT16 wnd, frg, len;
+		IUINT8 conv, cmd;
 		IKCPSEG *seg;
 
 		if (size < (int)IKCP_OVERHEAD) break;
 
-		data = ikcp_decode32u(data, &conv);
+		data = ikcp_decode8u(data, &conv);
 		if (conv != kcp->conv) return -1;
 
 		data = ikcp_decode8u(data, &cmd);
-		data = ikcp_decode8u(data, &frg);
+		data = ikcp_decode16u(data, &frg);
 		data = ikcp_decode16u(data, &wnd);
+		data = ikcp_decode16u(data, &len);
 		data = ikcp_decode32u(data, &ts);
 		data = ikcp_decode32u(data, &sn);
 		data = ikcp_decode32u(data, &una);
-		data = ikcp_decode32u(data, &len);
 
 		size -= IKCP_OVERHEAD;
-
 		if ((long)size < (long)len || (int)len < 0) return -2;
 
 		if (cmd != IKCP_CMD_PUSH && cmd != IKCP_CMD_ACK &&
@@ -912,14 +912,14 @@ int ikcp_input(ikcpcb *kcp, const char *data, long size)
 //---------------------------------------------------------------------
 static char *ikcp_encode_seg(char *ptr, const IKCPSEG *seg)
 {
-	ptr = ikcp_encode32u(ptr, seg->conv);
+	ptr = ikcp_encode8u(ptr, (IUINT8)seg->conv);
 	ptr = ikcp_encode8u(ptr, (IUINT8)seg->cmd);
-	ptr = ikcp_encode8u(ptr, (IUINT8)seg->frg);
+	ptr = ikcp_encode16u(ptr, (IUINT16)seg->frg);
 	ptr = ikcp_encode16u(ptr, (IUINT16)seg->wnd);
+	ptr = ikcp_encode16u(ptr, (IUINT16)seg->len); // Memory Alignment
 	ptr = ikcp_encode32u(ptr, seg->ts);
 	ptr = ikcp_encode32u(ptr, seg->sn);
 	ptr = ikcp_encode32u(ptr, seg->una);
-	ptr = ikcp_encode32u(ptr, seg->len);
 	return ptr;
 }
 
